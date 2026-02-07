@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulazione 3D Motore 4 Cilindri</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: #0b0f16;
+      color: #f5f7fa;
+    }
+    #hud {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(7, 10, 18, 0.75);
+      padding: 12px 16px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(6px);
+      line-height: 1.4;
+      min-width: 220px;
+    }
+    #hud h1 {
+      font-size: 16px;
+      margin: 0 0 8px 0;
+      letter-spacing: 0.5px;
+    }
+    .phase {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin: 4px 0;
+    }
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(7, 10, 18, 0.8);
+      padding: 12px 18px;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    button {
+      border: none;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: #1e90ff;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    button:hover {
+      background: #3ba2ff;
+    }
+    #rpmValue {
+      min-width: 64px;
+      text-align: right;
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 220px;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <h1>Ciclo 4 cilindri in linea</h1>
+    <div class="phase"><span>Cilindro 1</span><strong id="phase1"></strong></div>
+    <div class="phase"><span>Cilindro 2</span><strong id="phase2"></strong></div>
+    <div class="phase"><span>Cilindro 3</span><strong id="phase3"></strong></div>
+    <div class="phase"><span>Cilindro 4</span><strong id="phase4"></strong></div>
+  </div>
+  <div id="controls">
+    <button id="toggle">START</button>
+    <label>RPM</label>
+    <input id="rpm" type="range" min="0" max="6000" value="1200" />
+    <span id="rpmValue">1200</span>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f16);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 140, 320);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 60, 0);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambient);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    keyLight.position.set(200, 300, 200);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x6aa8ff, 0.4);
+    fillLight.position.set(-200, 100, -200);
+    scene.add(fillLight);
+
+    const engineGroup = new THREE.Group();
+    scene.add(engineGroup);
+
+    const baseMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2c3e50,
+      transparent: true,
+      opacity: 0.3,
+      wireframe: true,
+    });
+    const baseGeometry = new THREE.BoxGeometry(260, 120, 120);
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.set(0, 60, 0);
+    engineGroup.add(base);
+
+    const crankshaftGroup = new THREE.Group();
+    engineGroup.add(crankshaftGroup);
+
+    const shaftMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3b3b3b,
+      metalness: 0.8,
+      roughness: 0.2,
+    });
+
+    const shaftGeometry = new THREE.CylinderGeometry(8, 8, 260, 24, 1, false);
+    const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+    shaft.rotation.z = Math.PI / 2;
+    shaft.position.y = 20;
+    crankshaftGroup.add(shaft);
+
+    const crankPinGeometry = new THREE.CylinderGeometry(6, 6, 18, 20);
+    const crankPinOffsets = [0, Math.PI, Math.PI, 0];
+    const cylinderX = [-90, -30, 30, 90];
+    const crankPins = [];
+
+    for (let i = 0; i < 4; i += 1) {
+      const pin = new THREE.Mesh(crankPinGeometry, shaftMaterial);
+      pin.rotation.z = Math.PI / 2;
+      pin.position.set(cylinderX[i], 20, 0);
+      crankshaftGroup.add(pin);
+      crankPins.push(pin);
+    }
+
+    const pistonMaterial = new THREE.MeshStandardMaterial({
+      color: 0xbfc7d5,
+      metalness: 0.7,
+      roughness: 0.3,
+    });
+
+    const rodMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6a7d8f,
+      metalness: 0.6,
+      roughness: 0.4,
+    });
+
+    const pistonGeometry = new THREE.CylinderGeometry(12, 12, 18, 24);
+    const rodGeometry = new THREE.CylinderGeometry(3.5, 3.5, 1, 16);
+
+    const pistons = [];
+    const rods = [];
+    const sparkMeshes = [];
+
+    const r = 14; // raggio manovella
+    const l = 55; // lunghezza biella
+    const crankCenterY = 20;
+
+    for (let i = 0; i < 4; i += 1) {
+      const piston = new THREE.Mesh(pistonGeometry, pistonMaterial);
+      piston.position.set(cylinderX[i], 90, 0);
+      piston.rotation.z = Math.PI / 2;
+      engineGroup.add(piston);
+      pistons.push(piston);
+
+      const rod = new THREE.Mesh(rodGeometry, rodMaterial);
+      rod.position.set(cylinderX[i], 60, 0);
+      rod.rotation.z = Math.PI / 2;
+      engineGroup.add(rod);
+      rods.push(rod);
+
+      const sparkGeometry = new THREE.SphereGeometry(4, 16, 16);
+      const sparkMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffee88,
+        emissive: 0xffb400,
+        emissiveIntensity: 0.0,
+      });
+      const spark = new THREE.Mesh(sparkGeometry, sparkMaterial);
+      spark.position.set(cylinderX[i], 112, 0);
+      engineGroup.add(spark);
+      sparkMeshes.push(spark);
+    }
+
+    const valveMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8bd2d9,
+      metalness: 0.4,
+      roughness: 0.3,
+    });
+
+    const valveGeometry = new THREE.CylinderGeometry(2.2, 2.2, 18, 12);
+    const valves = [];
+
+    for (let i = 0; i < 4; i += 1) {
+      const intake = new THREE.Mesh(valveGeometry, valveMaterial);
+      const exhaust = new THREE.Mesh(valveGeometry, valveMaterial);
+      intake.position.set(cylinderX[i] - 6, 118, -6);
+      exhaust.position.set(cylinderX[i] + 6, 118, -6);
+      engineGroup.add(intake, exhaust);
+      valves.push({ intake, exhaust });
+    }
+
+    const phases = [
+      "Espansione",
+      "Scarico",
+      "Aspirazione",
+      "Compressione",
+    ];
+
+    const phaseElements = [
+      document.getElementById("phase1"),
+      document.getElementById("phase2"),
+      document.getElementById("phase3"),
+      document.getElementById("phase4"),
+    ];
+
+    const firingAngles = [0, 3 * Math.PI, Math.PI, 2 * Math.PI];
+    const toggleButton = document.getElementById("toggle");
+    const rpmSlider = document.getElementById("rpm");
+    const rpmValue = document.getElementById("rpmValue");
+
+    let running = false;
+    let theta = 0;
+    let lastTime = performance.now();
+
+    toggleButton.addEventListener("click", () => {
+      running = !running;
+      toggleButton.textContent = running ? "STOP" : "START";
+      lastTime = performance.now();
+    });
+
+    rpmSlider.addEventListener("input", () => {
+      rpmValue.textContent = rpmSlider.value;
+    });
+
+    function updateKinematics(dt) {
+      const rpm = Number(rpmSlider.value);
+      const omega = (rpm * 2 * Math.PI) / 60;
+      if (running) {
+        theta += omega * dt;
+      }
+
+      crankshaftGroup.rotation.x = theta;
+
+      for (let i = 0; i < 4; i += 1) {
+        const crankTheta = theta + crankPinOffsets[i];
+        const sinTheta = Math.sin(crankTheta);
+        const cosTheta = Math.cos(crankTheta);
+
+        const pistonDistance = r * cosTheta + Math.sqrt(l * l - (r * sinTheta) ** 2);
+        const pistonY = crankCenterY + pistonDistance;
+
+        pistons[i].position.y = pistonY + 40;
+
+        const crankPinY = crankCenterY + r * cosTheta;
+        const crankPinZ = r * sinTheta;
+
+        crankPins[i].position.set(cylinderX[i], crankPinY, crankPinZ);
+
+        const pistonPin = new THREE.Vector3(cylinderX[i], pistonY + 40 - 8, 0);
+        const crankPin = new THREE.Vector3(cylinderX[i], crankPinY, crankPinZ);
+        const rodVec = new THREE.Vector3().subVectors(pistonPin, crankPin);
+        const rodLength = rodVec.length();
+
+        rods[i].position.copy(crankPin).add(pistonPin).multiplyScalar(0.5);
+        rods[i].scale.set(1, rodLength, 1);
+        rods[i].lookAt(pistonPin);
+        rods[i].rotateX(Math.PI / 2);
+
+        const cycleAngle = ((theta - firingAngles[i]) % (4 * Math.PI) + 4 * Math.PI) % (4 * Math.PI);
+        const phaseIndex = Math.floor(cycleAngle / Math.PI) % 4;
+        phaseElements[i].textContent = phases[phaseIndex];
+
+        const flashWindow = 0.25;
+        const flashIntensity = cycleAngle < flashWindow ? 2.5 : 0.0;
+        sparkMeshes[i].material.emissiveIntensity = flashIntensity;
+
+        const intakeLift = phaseIndex === 2 ? Math.sin((cycleAngle - 2 * Math.PI) / Math.PI * Math.PI) : 0;
+        const exhaustLift = phaseIndex === 1 ? Math.sin((cycleAngle - Math.PI) / Math.PI * Math.PI) : 0;
+        valves[i].intake.position.y = 118 + intakeLift * 6;
+        valves[i].exhaust.position.y = 118 + exhaustLift * 6;
+      }
+    }
+
+    function animate(time) {
+      const dt = (time - lastTime) / 1000;
+      lastTime = time;
+      updateKinematics(dt);
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
